@@ -6,7 +6,7 @@ import os
 import sys
 import signal
 import argparse
-from typing import Dict
+from typing import Dict, List
 
 # from hw1.hw1 import HW1, HW1_ALIASES
 # from hw3.hw3 import HW3, HW3_ALIASES
@@ -62,6 +62,7 @@ def main():
     rubric_code = args.code if args.code else "all"
 
     tester = Grader(args.hw, args.submitter, rubric_code, env)
+    # insert list
     if args.dump_grades:
         tester.grades.dump_grades(args.submitter, rubric_code.upper())
         sys.exit()
@@ -90,7 +91,7 @@ class Grader():
         grades_file: Path to JSON file containing session grades
         grades: Maps (uni/team) -> (rubric item -> (pts, comments))
     """
-    def __init__(self, hw_name: str, submitter: str, rubric_code: str,
+    def __init__(self, hw_name: List, submitter: str, rubric_code: str,
                  env: Dict[str, bool]):
         self.hw_name = hw_name
         self.rubric_code = rubric_code
@@ -260,23 +261,6 @@ class Grader():
             for i in range(1, len(rubric_item.subitems) + 1):
                 code = f"{rubric_item.code}.{i}"
                 self.print_subitem_grade(code, warn=True)
-
-
-class pushit(ContextDecorator):
-
-    def __enter__(self, data=None):
-        cls.q = deque 
-        pass 
-        return self
-
-    def __exit__(self, *exc):
-        pass 
-        return False 
-    
-
-@pushit 
-def pushd(file):
-    pass 
 
 
 if __name__ == '__main__':

@@ -4,46 +4,34 @@ from pathlib import Path
 from contextlib import ContextDecorator
 from collections import deque
 
-# class Node:
-
-#     def __init__(self, name):
-#         self.actual = name 
-    
-#     def __repr__(self):
-#         return self.actual.stem 
     
 
 class pushit(ContextDecorator):
+    ''' Allows the'''
     home = os.environ['HOMEPATH']
     q = deque()
     
-    def __init__(self,*args, **kwargs): # init for cntxt mgr
-        # if args:
-        #     if type(args[0])== 'function': 
-        #         self.fn = args
-        # else:
-        #     pass
+    def __init__(self,*args, **kwargs): # init for cntxt mgr calls
         self.q = pushit.q
         self.prev_dir = None
         super().__init__()
-        print('Init: ', args)
         
     
-    def __call__(self,file=None, ch_dir=True,**kwargs):
+    def __call__(self,file=None, chdir=True,**kwargs):
+        ''' Default is to change to dir that is added to queue. 
+        Passing chdir=False allows to remain in current dir, 
+        while adding to the queue'''
         if file:
             if '~' in file:
                 file = Path(pushit.home) / file.lstrip('~/')
-                # print(file)
-                # print(str(file))
             else:
                 file = Path(os.getcwd()) / file
-            # file = Node(file)
             if 'right' not in kwargs:
                 pushit.q.appendleft(file)
             else:
                 pushit.q.append(file)
         print('call: ',file)
-        if ch_dir and file:
+        if chdir and file:
             os.chdir(file)
     
     def __enter__(self, file=None):
@@ -75,9 +63,12 @@ class pushit(ContextDecorator):
             print(ix,obj.stem)
         return ''
     
-    def __iter__(self): pass
+    def __iter__(self):
+        for obj in pushit.q:
+            yield obj.stem
 @pushit 
-def pushd(file): # 1st initializes func
+def pushd(file): # __init__ this is wut intializes the pushd as a
+                # context deco 1st.
     pass
 
 def popd(file=None, left=True):
@@ -93,15 +84,17 @@ def popd(file=None, left=True):
                 obj = pushit.q.popleft()
             except ValueError:
                 print(e)
-                print('Pushd has no more dirs in queue')
+                print('Pushd does not contin any dirs')
         else:
             try:
                 obj = pushit.q.pop()
             except ValueError:
                 print(e)
-                print('Pushd has no more dirs in queue')
+                print('Pushd does not contain any dirs')
 
     return obj
+
+# Tests
 # dirs can be traced from home or by cwd only
 print('Echo:\n',pushd)
 print('-' * 50)
@@ -134,15 +127,15 @@ print('--Start--')
 print('\n--Context mgr--')
 print('CM--withoutargs')
 with pushit() as f:
+    print('Begin for loop')
     for obj in f:
-        print(obj)
-    print('dang\n')
+        print('No arg: ',obj)
 
+print('Echo: ', pushd)
 print('\n--Context mgr 2 levels--') 
 with pushit() as f:
     with pushit() as f:
-        print(repr(f))
-    print('dang\n')
+        print(f)
 # print('\nC.M--With args')
 # with pushit('who') as f:
 #     print(f)
