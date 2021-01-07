@@ -16,11 +16,13 @@ from typing import Dict
 # from exam1.exam1 import EXAM1, EXAM1_ALIASES
 # from exam2.exam2 import EXAM2, EXAM2_ALIASES
 from demo.demo import DEMO, DEMO_ALIASES
+from collections import deque
 from common.grades import Grades
 from common.hw_base import RubricItem
 
 import common.printing as p
 import common.utils as utils
+from contextlib import ContextDecorator
 
 def main():
     """Entry-point into the grader"""
@@ -258,6 +260,23 @@ class Grader():
             for i in range(1, len(rubric_item.subitems) + 1):
                 code = f"{rubric_item.code}.{i}"
                 self.print_subitem_grade(code, warn=True)
+
+
+class pushit(ContextDecorator):
+
+    def __enter__(self, data=None):
+        cls.q = deque 
+        pass 
+        return self
+
+    def __exit__(self, *exc):
+        pass 
+        return False 
+    
+
+@pushit 
+def pushd(file):
+    pass 
 
 
 if __name__ == '__main__':
