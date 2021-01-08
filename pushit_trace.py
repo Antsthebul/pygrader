@@ -13,7 +13,8 @@ class pushit(ContextDecorator):
     home = os.environ['HOMEPATH'] if sys.platform[:3] == 'win' else os.environ['HOME']
     q = deque()
 
-    def __init__(self,*args, **kwargs):
+    def __init__(self,*args, **kwargs): # init for cntxt mgr calls, and funs @ startup
+        # This runs twice in that 1st time @ startup nd then when using with statement
         super().__init__()
         self.q = pushit.q
         self.prev_dir = None
@@ -30,7 +31,7 @@ class pushit(ContextDecorator):
         Passing chdir=False remains in current dir, 
         while still adding to queue'''
         if not pushit.q:
-            pushit.q.append(self.main)
+            pushit.q.append(self.main) # always start queue with cwd @ function call w or w/ args
         if path:
             path = self.clean_path(path)
             if 'right' not in kwargs:
@@ -43,17 +44,23 @@ class pushit(ContextDecorator):
         return self.fn(path)
     
     def __enter__(self):
+        print('Enter: ', end='')
         self.prev_dir = os.getcwd()
+        print(self.prev_dir)
         if self.thispath:
             os.chdir(self.clean_path(self.thispath)) # Just head to dir
         else:
             os.chdir(popd(left=True))  # or use queue, LIFO mode
-        return self
+        print('We now switched to here: ', os.getcwd())
+        print('Enter body...')
+        return self # to be used by context MGR
 
     def __exit__(self, *exc):
+        print('__exiting__')
+        print('Still in: ', os.getcwd())
         if self.prev_dir and (self.prev_dir != os.getcwd()):
             os.chdir(self.prev_dir)
-            print('We exited to: ', self.prev_dir)
+            print('We exited to: ', self.prev_dir) # this should be where we intiaiily started
         return False 
     
     def __repr__(self):
@@ -88,6 +95,7 @@ class pushit(ContextDecorator):
         
 @pushit 
 def pushd(file):
+    print('I run')
     pass
 
 def popd(path=None, left=None, save=False):
@@ -99,14 +107,14 @@ def popd(path=None, left=None, save=False):
         try:
             pushit.q.remove(path)
         except ValueError:
-            print(f'Unable to locate "{path}" ')
+            print('Unable to locate "%s" ' % path)
     else:
         if left:
             left = False
             try:
                 obj = pushit.q.popleft()
             except IndexError:
-                print('Pushd does not contain any dirs')
+                print('Pushd does not contin any dirs')
             else:
                 left = True
         else:
@@ -123,3 +131,89 @@ def popd(path=None, left=None, save=False):
     elif save and right:
         pushd(obj, right=True) 
     return obj
+
+# Tests
+# dirs can be traced from home or by cwd only
+print('Echo:\n',pushd)
+print('-' * 50)
+print('Empty call:\n',pushd())
+print('-' * 50)
+
+print('Single dir addition:') 
+pushd('test', chdir=False) 
+print('Empty Call:\n',pushd())
+print('-' * 50)
+
+print('Single dir addition w/o dir change: *Incorrect way*')
+try:
+    pushd('test1', chdir=False) # This will raise an Error
+except FileNotFoundError as e:
+    print(e)
+print('Echo:\n',pushd)
+print('-'*50)
+
+print('Single dir addition w/o dir change: *correct way*')
+try:
+    pushd('test/test1', chdir=False) # Correct path specifed from current location of pushd
+except FileNotFoundError as e:
+    print(e)
+else:
+    print('Exception did not raise!')
+print('Echo:\n',pushd)
+print('-'*50)
+
+print('Append right w/ dir change:')
+pushd('test/test1', right=True)
+print('Echo:\n',pushd)
+print('-'*50)
+
+print('From home dir')
+pushd('~/anaconda3')
+print('Echo:\n',pushd)
+
+print('-'*50)
+print('--Start--')
+print(pushd)
+
+print('\n--Context mgr--')
+print('CM--withoutargs')
+with pushit() as f:
+    print('Begin for loop')
+    for obj in f:
+        print('No arg: ',obj)
+
+print('Echo: ', pushd)
+print('Now clearing...')
+pushd.clear()
+print('Echo: ', pushd)
+print('...All Clear!')
+print('-' * 50)
+print('Single dir addition w/ dir change and queue instantion')
+pushd('test')
+print('Echo: ', pushd)
+print('Another one...')
+pushd('test1')
+print('But wait..Now using relative paths')
+pushd('../..')
+print('Echo: ',pushd)
+print('-'* 50)
+print('\n--Context mgr 3 levels--') 
+with pushit() as foo:
+    print('Level 1. Doing stuff in: ', os.getcwd())
+    with pushit() as bar:
+        print('LEvel 2. Doing stuff in: ', os.getcwd())
+        with pushit() as f:
+            print('Level 3. Doing stuff in: ', os.getcwd())  
+            print(f)
+        print('Returned to Level 2: ', os.getcwd())
+    print('Return to level 1: ', os.getcwd())
+print('-'*50)
+print('Echo: ', pushd)
+
+
+print('--ContextMgr with args--')
+with pushit('../..') as f:
+    print('Do stuff here')
+    print('CWD: ',os.getcwd())
+
+print('Echo: ', pushd)
