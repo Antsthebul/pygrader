@@ -1,4 +1,5 @@
 import os
+import sys 
 
 from pathlib import Path
 from contextlib import ContextDecorator
@@ -7,91 +8,120 @@ from collections import deque
     
 
 class pushit(ContextDecorator):
-    ''' Allows the'''
-    home = os.environ['HOMEPATH']
+    ''' A mix between a queue and a context manager.'''
+    home = os.environ['HOMEPATH'] if sys.platform[:3] == 'win' else os.environ['HOME']
     q = deque()
-    
+
     def __init__(self,*args, **kwargs): # init for cntxt mgr calls
         self.q = pushit.q
         self.prev_dir = None
+        self.main = Path(os.getcwd())
         super().__init__()
-        
-    
-    def __call__(self,file=None, chdir=True,**kwargs):
-        ''' Default is to change to dir that is added to queue. 
-        Passing chdir=False allows to remain in current dir, 
-        while adding to the queue'''
-        if file:
-            if '~' in file:
-                file = Path(pushit.home) / file.lstrip('~/')
-            else:
-                file = Path(os.getcwd()) / file
-            if 'right' not in kwargs:
-                pushit.q.appendleft(file)
-            else:
-                pushit.q.append(file)
-        print('call: ',file)
-        if chdir and file:
-            os.chdir(file)
-    
-    def __enter__(self, file=None):
-        print('__enter__')
-        self.prev_dir = os.getcwd()
-        print(self.prev_dir)
-        if file:
-            route = popd(file)
+        if args and (args[0]!='function'):
+            self.thispath = args[0] 
         else:
-            route = popd()
-        os.chdir(route)
-        print('Now here: ', os.getcwd())
+            self.thispath = None
+    
+    def __call__(self,path=None, chdir=True,**kwargs):
+        ''' Default is to change to dir when called, and add to queue. 
+        Passing chdir=False allows to remain in current dir, 
+        while adding to queue'''
+        if not pushit.q:
+            pushit.q.append(self.main) # always start queue with cwd @ function call w or w/ args
+        if path:
+            path = self.clean_path(path)
+            if 'right' not in kwargs:
+                pushit.q.appendleft(path)
+            else:
+                pushit.q.append(path)
+        # print('Called with: ',path)
+        if chdir and path:
+            os.chdir(path)
+        return self
+    
+    def __enter__(self):
+        self.prev_dir = os.getcwd()
+        if self.thispath:
+            os.chdir(self.clean_path(self.thispath)) # Just head to file
+        else:
+            os.chdir(popd(left=True))  # or use queue
+        print('Enter here: ', os.getcwd())
         return self
 
     def __exit__(self, *exc):
         print('__exiting__')
-        if self.prev_dir:os.chdir(self.prev_dir)
-        print('We exited: ', self.prev_dir) # this should be where we intiaiily started
+        print('Still in: ', os.getcwd())
+        if self.prev_dir and (self.prev_dir != os.getcwd()):
+            os.chdir(self.prev_dir)
+            print('We exited to: ', self.prev_dir) # this should be where we intiaiily started
         return False 
     
     def __repr__(self):
         current = os.getcwd()
-        if not pushit.q:
-            print('0 {};'.format(current))
-
+        print('- {};'.format(current))
         for ix, obj in enumerate(pushit.q):
-            if  ix== 0:
-                print(current)
-            print(ix,obj.stem)
+                print(ix,obj.stem)
+      
         return ''
     
     def __iter__(self):
+        ''' Path objects have .stem() if names should be
+        displayed instead'''
         for obj in pushit.q:
-            yield obj.stem
+            yield obj
+    
+    def clean_path(self, path):
+        if '~' in path:
+            path = Path(pushit.home) / path.lstrip('~/')
+        else:
+            path = Path(os.getcwd()) / path
+        if '.' in str(path):
+            path = path.resolve()
+        if path.is_dir():
+            return path
+        raise FileNotFoundError(f'FileNotFoundError: Unable to locate path specified "{path}".')
+
+    def clear(self):
+        '''Start fresh from original call location '''
+        pushit.q.clear()
+        os.chdir(self.main)
+        
 @pushit 
-def pushd(file): # __init__ this is wut intializes the pushd as a
-                # context deco 1st.
+def pushd(file):
     pass
 
-def popd(file=None, left=True):
-    if file:
+def popd(path=None, left=None, save=False):
+    '''If path is specifed, path will be removed
+    save kwarg is for when popd shoud 'echo' the dir instead of
+    remove it'''
+    obj = None
+    if path:
         try:
-            pushit.q.remove(file)
+            pushit.q.remove(path)
         except ValueError:
-            print(e)
-            print('Unable to remove " %s" Pushd has no more dirs in queue' % file)
+            print('Unable to locate "%s" ' % path)
     else:
         if left:
+            left = False
             try:
                 obj = pushit.q.popleft()
-            except ValueError:
-                print(e)
+            except IndexError:
                 print('Pushd does not contin any dirs')
+            else:
+                left = True
         else:
+            right = False
             try:
                 obj = pushit.q.pop()
-            except ValueError:
-                print(e)
+            except IndexError:
                 print('Pushd does not contain any dirs')
-
+            else:
+                right = True
+    obj = str(obj)
+    if save and left:
+        pushd(obj)
+    elif save and right:
+        pushd(obj, right=True) 
     return obj
 
 # Tests
@@ -101,18 +131,31 @@ print('-' * 50)
 print('Empty call:\n',pushd())
 print('-' * 50)
 
-print('Single file addition:')
-pushd('test') # these are sent to __call__
-print('Echo:\n',pushd)
+print('Single dir addition:') 
+pushd('test', chdir=False) 
+print('Empty Call:\n',pushd())
 print('-' * 50)
 
-print('Single file addition:')
-pushd('test1') # 
+print('Single dir addition w/o dir change: *Incorrect way*')
+try:
+    pushd('test1', chdir=False) # This will raise an Error
+except FileNotFoundError as e:
+    print(e)
 print('Echo:\n',pushd)
 print('-'*50)
 
-print('Append right:')
-pushd('test2', right=True)
+print('Single dir addition w/o dir change: *correct way*')
+try:
+    pushd('test/test1', chdir=False) # Correct path specifed from current location of pushd
+except FileNotFoundError as e:
+    print(e)
+else:
+    print('Exception did not raise!')
+print('Echo:\n',pushd)
+print('-'*50)
+
+print('Append right w/ dir change:')
+pushd('test/test1', right=True)
 print('Echo:\n',pushd)
 print('-'*50)
 
@@ -122,7 +165,7 @@ print('Echo:\n',pushd)
 
 print('-'*50)
 print('--Start--')
-# print(pushd.q)
+print(pushd)
 
 print('\n--Context mgr--')
 print('CM--withoutargs')
@@ -132,13 +175,33 @@ with pushit() as f:
         print('No arg: ',obj)
 
 print('Echo: ', pushd)
-print('\n--Context mgr 2 levels--') 
-with pushit() as f:
-    with pushit() as f:
-        print(f)
-# print('\nC.M--With args')
-# with pushit('who') as f:
-#     print(f)
-#     for obj in f:
-#         print(obj)
-#     print('dang') 
+print('Now clearing...')
+pushd.clear()
+print('Echo: ', pushd)
+print('...All Clear!')
+print('-' * 50)
+print('Single dir addition w/ dir change and queue instantion')
+pushd('test')
+print('Echo: ', pushd)
+print('Another one...')
+pushd('test1')
+print('But wait..Now using relative paths')
+pushd('../..')
+print('Echo: ',pushd)
+print('-'* 50)
+print('\n--Context mgr 3 levels--') 
+with pushit() as foo:
+    with pushit() as bar:
+            with pushit() as f:  
+                print(f)
+
+print('-'*50)
+print('Echo: ', pushd)
+
+
+print('--ContextMgr with args--')
+with pushit('../..') as f:
+    print('Do stuff here')
+    print('CWD: ',os.getcwd())
+
+print('Echo: ', pushd)
