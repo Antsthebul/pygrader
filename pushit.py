@@ -37,7 +37,6 @@ class pushit(ContextDecorator):
                 pushit.q.appendleft(path)
             else:
                 pushit.q.append(path)
-        # print('Called with: ',path)
         if chdir and path:
             os.chdir(path)
         return self.fn(path)
@@ -53,7 +52,6 @@ class pushit(ContextDecorator):
     def __exit__(self, *exc):
         if self.prev_dir and (self.prev_dir != os.getcwd()):
             os.chdir(self.prev_dir)
-            print('We exited to: ', self.prev_dir)
         return False 
     
     def __repr__(self):
